@@ -47,18 +47,18 @@ Example:
 
 ## 🧩 How It Works
 
-1. Fetching and Playing Audio:
+### 1. Fetching and Playing Audio:
   * The application retrieves the YouTube URL from a JSON file.
   * It extracts the best available audio format using youtube-dl.
   * The extracted stream URL is then played using mpv.
-2. Playlist Management:
+### 2. Playlist Management:
   * A Listbox widget displays available songs.
   * Selecting a song and pressing Enter or double-clicking plays it.
   * Songs can be removed from the list.
-3. Playback Controls
+### 3. Playback Controls
   * The user can control playback via buttons or keyboard shortcuts.
   * The progress bar updates every 500ms to reflect song position.
-4. Shuffle & Repeat Modes
+### 4. Shuffle & Repeat Modes
   * Shuffle: When enabled, songs play in random order.
   * Repeat:
     * `Off` → Stops after last song
@@ -67,10 +67,10 @@ Example:
 
 ## 🛠️ FAQ
 
-1. "The player doesn't start!"
+### 1. "The player doesn't start!"
   * Ensure mpv is installed and accessible via the system path.
   * Try running mpv manually to confirm it's working.
-2. "Songs won't play, but they are in the list."
+### 2. "Songs won't play, but they are in the list."
   * Check if youtube-dl is up to date:
   ```bash
   pip install --upgrade youtube-dl
