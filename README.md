@@ -37,9 +37,13 @@ python main.py
 
 Example:
 
-![image](https://github.com/user-attachments/assets/3b309093-ae32-4e82-9d7f-6c344349901c)
+<p align="center">
+ <img src="https://github.com/user-attachments/assets/3b309093-ae32-4e82-9d7f-6c344349901c" width="600">
+</p>
 
-![image](https://github.com/user-attachments/assets/6e5b83f5-51be-4c3f-9beb-ddb4b0f588a1)
+<p align="center">
+ <img src="https://github.com/user-attachments/assets/6e5b83f5-51be-4c3f-9beb-ddb4b0f588a1" width="600">
+</p>
 
 ## 🧩 How It Works
 
