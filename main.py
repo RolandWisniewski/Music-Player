@@ -1,3 +1,4 @@
+import logging
 import json
 import mpv
 import yt_dlp
@@ -14,6 +15,15 @@ import random
 
 locale.setlocale(locale.LC_NUMERIC, "C")
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H-%M:%S",
+    filename="log.log"
+    # filename=None
+)
+
+logger = logging.getLogger(__name__)
 
 class FileHandling:
     def __init__(self, file):
@@ -42,6 +52,7 @@ class FileHandling:
 
 class AppDisplay:
     def __init__(self, root, file):
+        logger.info("Uruchomiono odtwarzacz")
         self.root = root
         self.root.title("")
         # self.root.title("Odtwarzacz muzyki YouTube 🎶")
@@ -168,7 +179,6 @@ class AppDisplay:
         self.shuffle_mode = False
         self.play_mode = "next"
         self.on_top = False
-        
 
     def update_progress(self):
         if self.player.time_pos is not None and self.player.duration is not None:
@@ -200,7 +210,9 @@ class AppDisplay:
         self.loop = root.after(20, lambda: self.animation(current_frame))
 
     def stop_animation(self):
-        self.root.after_cancel(self.loop)
+        if self.loop:
+            logger.info("Zatrzymano animację gif")
+            self.root.after_cancel(self.loop)
 
     def set_flag(self, event=None):
         self.on_top = False
@@ -248,10 +260,12 @@ class AppDisplay:
             youtube_regex = re.compile(r'^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$')
             if not youtube_regex.match(url):
                 self.error_sec_win.set("Niepoprawny link do YouTube")
+                logger.info("Niepoprawny link do YouTube")
                 return
 
             if url in self.data.show().values():
                 self.error_sec_win.set(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
+                logger.info(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
                 return
 
             ydl_opts = {"quiet": True}
@@ -261,6 +275,7 @@ class AppDisplay:
                 self.e2.insert(END, res)
         else:
             self.error_sec_win.set("Wprowadź URL")
+            logger.info("Wprowadź URL")
             return
 
     def add_new_url(self):
@@ -269,23 +284,28 @@ class AppDisplay:
         
         if not url:
             self.error_sec_win.set("Wprowadź URL")
+            logger.info("Wprowadź URL")
             return
 
         youtube_regex = re.compile(r'^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$')
         if not youtube_regex.match(url):
             self.error_sec_win.set("Niepoprawny link do YouTube")
+            logger.info("Niepoprawny link do YouTube")
             return
 
         if url in self.data.show().values():
             self.error_sec_win.set(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
+            logger.info(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
             return
 
         if not name:
             self.error_sec_win.set("Wprowadź nazwę")
+            logger.info("Wprowadź nazwę")
             return
 
         if name in self.data.show():
             self.error_sec_win.set(f"Nazwa '{name}' jest już na liście")
+            logger.info(f"Nazwa '{name}' jest już na liście")
             return
 
         self.data.show()[name] = url
@@ -293,6 +313,7 @@ class AppDisplay:
             json.dump(self.data.show(), f)
 
         self.error_sec_win.set("Pomyślnie dodano nowy utwór!")
+        logger.info(f"Dodano '{name}' do listy")
         self.mylist.insert(tk.END, name)
         self.e1.delete(0, tk.END)
         self.e2.delete(0, tk.END)
@@ -301,12 +322,14 @@ class AppDisplay:
         cs = self.mylist.curselection()
         if not cs:
             self.error.set("Nie wybrano żadnego utworu")
+            logger.info("Nie wybrano żadnego utworu")
             return None
         res = tk.messagebox.askquestion("Usuwanie utworu", "Na pewno usunąć wybrany utwór?")
         if res == 'yes':
+            self.error.set("Usunięto wybrany utwór z listy")
+            logger.info(f"Usunięto '{list(self.data.show().keys())[cs[0]]}' z listy")
             self.data.remove(cs[0])
             self.mylist.delete(cs)
-            self.error.set("Usunięto wybrany utwór z listy")
 
     def clear_error_text(self):
         self.error.set("")
@@ -320,8 +343,11 @@ class AppDisplay:
         cs = self.mylist.curselection()
         if not cs:
             self.error.set("Nie wybrano żadnego utworu")
+            logger.info("Nie wybrano żadnego utworu")
             return None
         url = self.data.show()[list(self.data.show().keys())[cs[0]]]
+        logger.info(f"Link do video: {url}")
+        logger.info(f"Odtwarzanie utworu: {list(self.data.show().keys())[cs[0]]}")
         options = {'format': 'bestaudio', 'quiet': True}
         with YoutubeDL(options) as ydl:
             try:
@@ -329,13 +355,15 @@ class AppDisplay:
                 self.title = list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]
                 self.text_info2.config(text=self.title)
                 return info.get('url', None)
-            except:
+            except Exception as e:
                 self.error.set("Nie udało się pobrać audio")
+                logger.exception("Nie udało się pobrać audio")
 
     def toggle_play_pause(self, event=None):
         if self.player.pause:
             self.resume_audio()
         elif self.player.playback_time:
+            self.stop_animation()
             self.pause_audio()
         else:
             self.play_audio()
@@ -344,19 +372,24 @@ class AppDisplay:
         self.stop_audio()
         audio_url = self.fetch_audio_url()
         if audio_url:
+            logger.info(f"Link do audio: {audio_url}")
             self.player.play(audio_url)
             self.animation(current_frame=0)
+            logger.info("Rozpoczęto animację gif")
             self.player.pause = False
             self.play_button.config(text="⏸")
 
     def pause_audio(self):
+        logger.info("Wstrzymano odtwarzanie")
         self.player.pause = True
         self.stop_animation()
         self.play_button.config(text="▶️")
 
     def resume_audio(self):
+        logger.info("Wznowiono odtwarzanie")
         self.player.pause = False
         self.animation(current_frame=0)
+        logger.info("Rozpoczęto animację gif")
         self.play_button.config(text="⏸")
 
     def toggle_play_mode(self):
@@ -364,6 +397,7 @@ class AppDisplay:
         mode_labels = {"repeat": "REPEAT MODE", "next": "NEXT MODE", "stop": "STOP MODE"}
         current_index = modes.index(self.play_mode)
         self.play_mode = modes[(current_index + 1) % len(modes)]
+        logger.info(mode_labels[self.play_mode])
         self.play_mode_button.config(text=mode_labels[self.play_mode])
 
     def on_track_end(self):
@@ -378,9 +412,11 @@ class AppDisplay:
     def toggle_shuffle(self):
         self.shuffle_mode = not self.shuffle_mode
         new_text = "SHUFFLE ON" if self.shuffle_mode else "SHUFFLE OFF"
+        logger.info(new_text)
         self.shuffle_button.config(text=new_text)
 
     def play_next(self):
+        logger.info("Następny utwór")
         cs = self.mylist.curselection()
         if not cs:
             return
@@ -395,6 +431,7 @@ class AppDisplay:
         self.play_audio()
 
     def play_previous(self, event=None):
+        logger.info("Poprzedni utwór")
         cs = self.mylist.curselection()
         if not cs:
             return  
@@ -420,6 +457,7 @@ class AppDisplay:
         if self.player.mute:
             self.player.mute = False
             self.mute_button.config(text="MUTE OFF")
+            logger.info("MUTE OFF")
             self.val.set(self.volume_before_mute)
             self.scale_lbl.config(text=self.volume_before_mute)
             self.change_volume()
@@ -427,6 +465,7 @@ class AppDisplay:
             self.volume_before_mute = self.player.volume
             self.player.mute = True
             self.mute_button.config(text="MUTE ON")
+            logger.info("MUTE ON")
             self.val.set(0)
             self.scale_lbl.config(text="0")
             self.change_volume()
@@ -438,6 +477,7 @@ class AppDisplay:
 
     def stop_audio(self):
         if self.player.playback_time:
+            logger.info("Zatrzymano odtwarzanie")
             self.player.stop()
             self.player.pause = False
             self.text_info2.config(text="Wybierz coś")
@@ -453,3 +493,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = AppDisplay(root, file)
     root.mainloop()
+    logger.info("Zakończono działanie programu")
