@@ -64,7 +64,7 @@ class AppDisplay:
         self.player = mpv.MPV(ytdl=True, video=False)
         self.player.observe_property("playback-time", self.check_end)
 
-        self.file = "music_gif_v2.gif"
+        self.file = "music_gif.gif"
         self.info = Image.open(self.file)
 
         self.header = tk.Frame(root)
