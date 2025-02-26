@@ -26,8 +26,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class FileHandling:
-    def __init__(self, file):
-        self.file = file
+    def __init__(self, url_file):
+        self.file = url_file
         with open(self.file) as f:
             try:
                 self.data = dict(json.load(f))
@@ -51,10 +51,12 @@ class FileHandling:
 
 
 class AppDisplay:
-    def __init__(self, root, file):
+    def __init__(self, root, url_file):
         logger.info("Uruchomiono odtwarzacz")
         self.root = root
-        # self.root.title("Odtwarzacz muzyki YouTube 🎶")
+        self.language = "pl"
+        with open("translations.json", "r", encoding="utf-8") as f:
+            self.translations = json.load(f)
         self.root.title("MimiPlayer")
         small_icon = tk.PhotoImage(file="icon-16.png")
         large_icon = tk.PhotoImage(file="icon-32.png")
@@ -83,20 +85,24 @@ class AppDisplay:
         self.changemenu.add_command(label="Danger", command=lambda: self.change_style("danger"))
         self.changemenu.add_command(label="Light", command=lambda: self.change_style("light"))
         self.changemenu.add_command(label="Dark", command=lambda: self.change_style("dark"))
-        self.filemenu.add_cascade(label="Zmień motyw", menu=self.changemenu)
+        self.filemenu.add_cascade(label=self.translations[self.language]["theme_change"], menu=self.changemenu)
+        self.lanchange = tk.Menu(self.filemenu, tearoff=0)
+        self.lanchange.add_command(label="en", command=lambda: self.change_language("en"))
+        self.lanchange.add_command(label="pl", command=lambda: self.change_language("pl"))
+        self.filemenu.add_cascade(label=self.translations[self.language]["lang_change"], menu=self.lanchange)
         self.filemenu.add_separator()
-        self.filemenu.add_command(label="Wyjście", command=root.quit)
-        self.menubar.add_cascade(label="Plik", menu=self.filemenu)
+        self.filemenu.add_command(label=self.translations[self.language]["exit"], command=root.quit)
+        self.menubar.add_cascade(label=self.translations[self.language]["file"], menu=self.filemenu)
         self.root.config(menu=self.menubar)
 
         self.right_click_menu = tk.Menu(root, tearoff=0)
-        self.right_click_menu.add_command(label="Kopiuj")
+        self.right_click_menu.add_command(label=self.translations[self.language]["copy"])
         self.right_click_menu.add_separator()
-        self.right_click_menu.add_command(label="Play/Pause")
+        self.right_click_menu.add_command(label=self.translations[self.language]["play_pause"])
         self.right_click_menu.add_separator()
-        self.right_click_menu.add_command(label="Usuń")
+        self.right_click_menu.add_command(label=self.translations[self.language]["del"])
 
-        self.data = FileHandling(file)
+        self.data = FileHandling(url_file)
         self.player = mpv.MPV(ytdl=True, video=False)
         self.player.observe_property("playback-time", self.check_end)
 
@@ -117,10 +123,10 @@ class AppDisplay:
         self.gif_label = tk.Label(self.header, width=40, image=self.static_img)
         self.gif_label.grid(row=0, column=1, pady=2)
 
-        self.text_info1 = tk.Label(self.header, text="Aktualnie puszczany utwór:")
+        self.text_info1 = tk.Label(self.header, text=self.translations[self.language]["now_playing"])
         self.text_info1.grid(row=1, column=1, pady=2)
 
-        self.title = "Wybierz coś"
+        self.title = self.translations[self.language]["select"]
         self.text_info2 = ttk.Label(self.header, text=self.title, bootstyle=f"inverse-{self.boot_stl}", font=("bold"), wraplength=350)
         self.text_info2.grid(row=2, column=1, pady=2)
 
@@ -137,10 +143,10 @@ class AppDisplay:
         self.mylist.grid(row=0, column=0, columnspan=2, rowspan=2, padx=5, pady=5)
         self.mylist.configure(highlightcolor="black")
 
-        self.open_window_button = ttk.Button(self.list_space, text="Dodaj", bootstyle=self.boot_stl, takefocus=False, command=self.open_new_window)
+        self.open_window_button = ttk.Button(self.list_space, text=self.translations[self.language]["add"], bootstyle=self.boot_stl, takefocus=False, command=self.open_new_window)
         self.open_window_button.grid(row=0, column=2, pady=2)
 
-        self.del_button = ttk.Button(self.list_space, text="Usuń", bootstyle=self.boot_stl, takefocus=False, command=self.delete_url)
+        self.del_button = ttk.Button(self.list_space, text=self.translations[self.language]["del"], bootstyle=self.boot_stl, takefocus=False, command=self.delete_url)
         self.del_button.grid(row=1, column=2, pady=2)
 
         self.progress_bar = tk.Frame(root)
@@ -194,7 +200,8 @@ class AppDisplay:
 
         self.mute_button = ttk.Button(self.volume_frame, text="MUTE OFF", bootstyle=self.boot_stl, takefocus=False, command=self.mute)
         self.mute_button.grid(row=0, column=0)
-        self.volume_before_mute = 100
+        self.volume_before_mute = 50
+        self.player.volume = self.volume_before_mute
         self.val = tk.IntVar(value=self.volume_before_mute)
         self.volume_scale = ttk.Scale(self.volume_frame, bootstyle=self.boot_stl, variable=self.val, from_=0, to=100, command=self.set_volume)
         self.volume_scale.set(self.player.volume)
@@ -216,17 +223,21 @@ class AppDisplay:
     def do_popup1(self, event=None):
         e_widget = event.widget
         self.mylist.event_generate('<Button-1>', x=event.x, y=event.y)
-        self.right_click_menu.entryconfigure("Kopiuj", command=lambda: e_widget.event_generate("<<Copy>>"))
-        self.right_click_menu.entryconfigure("Play/Pause", command=self.toggle_play_pause)
-        self.right_click_menu.entryconfigure("Usuń", command=self.delete_url)
+        try:
+            self.right_click_menu.entryconfigure(self.translations[self.language]["copy"], command=lambda: e_widget.event_generate("<<Copy>>"))
+        except:
+            self.language = 'en'
+            self.right_click_menu.entryconfigure(self.translations[self.language]["copy"], command=lambda: e_widget.event_generate("<<Copy>>"))
+        self.right_click_menu.entryconfigure(self.translations[self.language]["play_pause"], command=self.toggle_play_pause)
+        self.right_click_menu.entryconfigure(self.translations[self.language]["del"], command=self.delete_url)
         self.right_click_menu.tk.call("tk_popup", self.right_click_menu, event.x_root, event.y_root)
 
     def do_popup2(self, event=None):
         e_widget = event.widget
-        self.new_right_click_menu.entryconfigure("Wytnij", command=lambda: e_widget.event_generate("<<Cut>>"))
-        self.new_right_click_menu.entryconfigure("Kopiuj", command=lambda: e_widget.event_generate("<<Copy>>"))
-        self.new_right_click_menu.entryconfigure("Wklej", command=lambda: e_widget.event_generate("<<Paste>>"))
-        self.new_right_click_menu.entryconfigure("Zaznacz wszystko", command=lambda: e_widget.select_range(0, 'end'))
+        self.new_right_click_menu.entryconfigure(self.translations[self.language]["cut"], command=lambda: e_widget.event_generate("<<Cut>>"))
+        self.new_right_click_menu.entryconfigure(self.translations[self.language]["copy"], command=lambda: e_widget.event_generate("<<Copy>>"))
+        self.new_right_click_menu.entryconfigure(self.translations[self.language]["paste"], command=lambda: e_widget.event_generate("<<Paste>>"))
+        self.new_right_click_menu.entryconfigure(self.translations[self.language]["select_all"], command=lambda: e_widget.select_range(0, 'end'))
         self.new_right_click_menu.tk.call("tk_popup", self.new_right_click_menu, event.x_root, event.y_root)
 
     def set_value(self, event=None):
@@ -279,7 +290,7 @@ class AppDisplay:
     def open_new_window(self):
         if not self.on_top:
             self.new_window = tk.Toplevel(root)
-            self.new_window.title("Dodaj nowy utwór")
+            self.new_window.title(self.translations[self.language]["add_new"])
             window_width = 500
             window_height = 140
             self.screen_width = root.winfo_screenwidth()
@@ -291,16 +302,16 @@ class AppDisplay:
             self.new_window.resizable(False,False)
 
             self.new_right_click_menu = tk.Menu(root, tearoff=0)
-            self.new_right_click_menu.add_command(label="Wytnij")
-            self.new_right_click_menu.add_command(label="Kopiuj")
-            self.new_right_click_menu.add_command(label="Wklej")
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["cut"])
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["copy"])
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["paste"])
             self.new_right_click_menu.add_separator()
-            self.new_right_click_menu.add_command(label="Zaznacz wszystko")
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["select_all"])
 
-            self.url_entry = ttk.Label(self.new_window, bootstyle=self.boot_stl, text='Link do YouTube:').grid(row=0, column=0, sticky=tk.W, pady=2)
-            self.name_entry = ttk.Label(self.new_window, bootstyle=self.boot_stl, text='Nazwa:').grid(row=1, column=0, sticky=tk.W, pady=2)
+            self.url_entry = ttk.Label(self.new_window, bootstyle=self.boot_stl, text=self.translations[self.language]["yt_link"]).grid(row=0, column=0, sticky=tk.W, pady=2)
+            self.name_entry = ttk.Label(self.new_window, bootstyle=self.boot_stl, text=self.translations[self.language]["name"]).grid(row=1, column=0, sticky=tk.W, pady=2)
             self.e1 = ttk.Entry(self.new_window, bootstyle=self.boot_stl, width=40)
-            self.check_button = ttk.Button(self.new_window, bootstyle=self.boot_stl, takefocus=False, text='Wyszukaj nazwę', command=self.get_video_title)
+            self.check_button = ttk.Button(self.new_window, bootstyle=self.boot_stl, takefocus=False, text=self.translations[self.language]["name_search"], command=self.get_video_title)
             self.check_button.grid(row=0, column=2, pady=2)
             self.entry_text = tk.StringVar()
             self.e2 = ttk.Entry(self.new_window, textvariable=self.entry_text, bootstyle=self.boot_stl, width=40)
@@ -312,7 +323,7 @@ class AppDisplay:
             self.e1.bind("<Button-3><ButtonRelease-3>", self.do_popup2)
             self.e2.bind("<Button-3><ButtonRelease-3>", self.do_popup2)
 
-            self.add_button = ttk.Button(self.new_window, text="Dodaj", bootstyle=self.boot_stl, takefocus=False, command=self.add_new_url)
+            self.add_button = ttk.Button(self.new_window, text=self.translations[self.language]["add"], bootstyle=self.boot_stl, takefocus=False, command=self.add_new_url)
             self.add_button.grid(row=2, column=1, pady=2)
 
             self.error_sec_win = tk.StringVar()
@@ -331,58 +342,58 @@ class AppDisplay:
         if url:
             youtube_regex = re.compile(r'^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$')
             if not youtube_regex.match(url):
-                self.error_sec_win.set("Niepoprawny link do YouTube")
+                self.error_sec_win.set(self.translations[self.language]["inc_yt_link"])
                 logger.info("Niepoprawny link do YouTube")
                 return
 
             if url in self.data.show().values():
-                self.error_sec_win.set(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
+                self.error_sec_win.set(self.translations[self.language]["already_under"])
                 logger.info(f"Podany link jest juz na liscie pod nazwa '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
                 return
 
             ydl_opts = {"quiet": True}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                res = info.get("title", "Nieznany tytuł")
+                res = info.get("title", self.translations[self.language]["unknown_title"])
                 self.e2.delete(0, tk.END)
                 self.e2.insert(END, res)
         else:
-            self.error_sec_win.set("Wprowadź URL")
+            self.error_sec_win.set(self.translations[self.language]["enter_url"])
             logger.info("Wprowadz URL")
             return
 
     def character_limit(self):
         if len(self.entry_text.get()) > 40:
             self.entry_text.set(self.entry_text.get()[:40])
-            self.error_sec_win.set("Osiągnięto limit znaków")
+            self.error_sec_win.set(self.translations[self.language]["char_limit"])
 
     def add_new_url(self):
         url = self.e1.get().strip()        
         name = self.e2.get().strip()
         
         if not url:
-            self.error_sec_win.set("Wprowadź URL")
+            self.error_sec_win.set(self.translations[self.language]["enter_url"])
             logger.info("Wprowadz URL")
             return
 
         youtube_regex = re.compile(r'^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$')
         if not youtube_regex.match(url):
-            self.error_sec_win.set("Niepoprawny link do YouTube")
+            self.error_sec_win.set(self.translations[self.language]["inc_yt_link"])
             logger.info("Niepoprawny link do YouTube")
             return
 
         if url in self.data.show().values():
-            self.error_sec_win.set(f"Podany link jest już na liście pod nazwą '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
+            self.error_sec_win.set(self.translations[self.language]["already_under"])
             logger.info(f"Podany link jest juz na liscie pod nazwa '{list(filter(lambda key: self.data.show()[key] == url, self.data.show()))[0]}'")
             return
 
         if not name:
-            self.error_sec_win.set("Wprowadź nazwę")
+            self.error_sec_win.set(self.translations[self.language]["enter_name"])
             logger.info("Wprowadz nazwe")
             return
 
         if name in self.data.show():
-            self.error_sec_win.set(f"Nazwa '{name}' jest już na liście")
+            self.error_sec_win.set(self.translations[self.language]["already_on"].format(name=name))
             logger.info(f"Nazwa '{name}' jest juz na liscie")
             return
 
@@ -390,7 +401,7 @@ class AppDisplay:
         with open('url.json', 'w') as f:
             json.dump(self.data.show(), f)
 
-        self.error_sec_win.set("Pomyślnie dodano nowy utwór!")
+        self.error_sec_win.set(self.translations[self.language]["new_track_added"])
         logger.info(f"Dodano '{name}' do listy")
         self.mylist.insert(tk.END, name)
         self.e1.delete(0, tk.END)
@@ -399,12 +410,12 @@ class AppDisplay:
     def delete_url(self):
         cs = self.mylist.curselection()
         if not cs:
-            self.error.set("Nie wybrano żadnego utworu")
+            self.error.set(self.translations[self.language]["no_track_sel"])
             logger.info("Nie wybrano zadnego utworu")
             return None
-        res = tk.messagebox.askquestion("Usuwanie utworu", "Na pewno usunąć wybrany utwór?")
+        res = tk.messagebox.askquestion(self.translations[self.language]["track_del"], self.translations[self.language]["question1"])
         if res == 'yes':
-            self.error.set("Usunięto wybrany utwór z listy")
+            self.error.set(self.translations[self.language]["track_del_confirm"])
             logger.info(f"Usunieto '{list(self.data.show().keys())[cs[0]]}' z listy")
             self.data.remove(cs[0])
             self.mylist.delete(cs)
@@ -420,7 +431,7 @@ class AppDisplay:
     def fetch_audio_url(self):
         cs = self.mylist.curselection()
         if not cs:
-            self.error.set("Nie wybrano żadnego utworu")
+            self.error.set(self.translations[self.language]["no_track_sel"])
             logger.info("Nie wybrano zadnego utworu")
             return None
         url = self.data.show()[list(self.data.show().keys())[cs[0]]]
@@ -434,7 +445,7 @@ class AppDisplay:
                 self.text_info2.config(text=self.title)
                 return info.get('url', None)
             except Exception as e:
-                self.error.set("Nie udało się pobrać audio")
+                self.error.set(self.translations[self.language]["audio_download_fail"])
                 logger.exception("Nie udalo sie pobrac audio")
 
     def toggle_play_pause(self, event=None):
@@ -558,7 +569,7 @@ class AppDisplay:
             logger.info("Zatrzymano odtwarzanie")
             self.player.stop()
             self.player.pause = False
-            self.text_info2.config(text="Wybierz coś")
+            self.text_info2.config(text=self.translations[self.language]["select"])
             self.stop_animation()
             self.start_time.config(text="00:00")
             self.end_time.config(text="00:00")
@@ -566,8 +577,8 @@ class AppDisplay:
             self.play_button.config(text="▶️")
 
     def change_style(self, style):
-        self.error.set(f"Zmieniono styl na {style.title()}")
-        logger.info(f"Zmieniono styl na {style.title()}")
+        self.error.set(f"{self.translations[self.language]["theme_change_confirm"]} {style.title()}")
+        logger.info(f"Zmieniono motyy na {style.title()}")
         self.text_info2.config(bootstyle=f"inverse-{style}")
         self.open_window_button.config(bootstyle=style)
         self.del_button.config(bootstyle=style)
@@ -581,10 +592,33 @@ class AppDisplay:
         self.mute_button.config(bootstyle=style)
         self.volume_scale.config(bootstyle=style)
 
+    def change_language(self, lang):
+        self.language = lang
+
+        self.menubar.entryconfigure(0, label=self.translations[lang]["file"])
+        self.filemenu.entryconfigure(0, label=self.translations[lang]["theme_change"])
+        self.filemenu.entryconfigure(1, label=self.translations[lang]["lang_change"])
+        self.filemenu.entryconfigure(3, label=self.translations[lang]["exit"])
+
+        self.text_info1.config(text=self.translations[lang]["now_playing"])
+        if self.player.playback_time or self.player.pause:
+            return None
+        else:
+            self.text_info2.config(text=self.translations[lang]["select"])
+
+        self.open_window_button.config(text=self.translations[lang]["add"])
+        self.del_button.config(text=self.translations[lang]["del"])
+
+        self.right_click_menu.entryconfigure(0, label=self.translations[lang]["copy"])
+        self.right_click_menu.entryconfigure(2, label=self.translations[lang]["play_pause"])
+        self.right_click_menu.entryconfigure(4, label=self.translations[lang]["del"])
+
+        #  self.right_click_menu.entryconfigure(self.translations[self.language]["copy"], command=lambda: e_widget.event_generate("<<Copy>>"))
+
 
 if __name__ == "__main__":
-    file = "url.json"
+    url_file = "url.json"
     root = tk.Tk()
-    app = AppDisplay(root, file)
+    app = AppDisplay(root, url_file)
     root.mainloop()
     logger.info("Zakonczono dzialanie programu")
