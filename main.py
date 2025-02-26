@@ -562,7 +562,7 @@ class AppDisplay:
             self.stop_animation()
             self.start_time.config(text="00:00")
             self.end_time.config(text="00:00")
-            self.progress.set(0)
+            self.progress_val.set(0)
             self.play_button.config(text="▶️")
 
     def change_style(self, style):
