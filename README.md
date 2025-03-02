@@ -1,6 +1,6 @@
-# MusicPlayer
+# Music Player
 
-YouTube Player is a Python-based GUI application that allows you to stream and control audio playback from YouTube videos. It features a playlist system, media controls, and integration with mpv for smooth playback.
+Music Player is a Python-based GUI application that allows you to stream and control audio playback from YouTube videos. It features a playlist system, media controls, and integration with mpv for smooth playback.
 
 ### 🌟 Features
 
