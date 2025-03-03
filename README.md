@@ -38,11 +38,11 @@ python main.py
 Example:
 
 <p align="center">
- <img src="https://github.com/user-attachments/assets/3b309093-ae32-4e82-9d7f-6c344349901c" width="600">
+ <img src="https://github.com/user-attachments/assets/081b3d24-f418-4cb0-898e-061674d057b5" width="600">
 </p>
 
 <p align="center">
- <img src="https://github.com/user-attachments/assets/6e5b83f5-51be-4c3f-9beb-ddb4b0f588a1" width="600">
+ <img src="https://github.com/user-attachments/assets/21a2fc24-42ca-4dd0-8419-3c7edaa1d0f2" width="600">
 </p>
 
 ## 🧩 How It Works
