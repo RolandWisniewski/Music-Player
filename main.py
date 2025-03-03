@@ -14,7 +14,6 @@ import yt_dlp as ydl
 from PIL import Image
 import time
 import random
-import threading
 
 locale.setlocale(locale.LC_NUMERIC, "C")
 
@@ -133,8 +132,8 @@ class AppDisplay:
 
         window_width = 380
         window_height = 440
-        self.screen_width = root.winfo_screenwidth()
-        self.screen_height = root.winfo_screenheight()
+        self.screen_width = self.root.winfo_screenwidth()
+        self.screen_height = self.root.winfo_screenheight()
         x = (self.screen_width/2) - (window_width/2)
         y = (self.screen_height/2) - (window_height/2)
 
@@ -142,7 +141,7 @@ class AppDisplay:
         self.root.resizable(False,False)
 
         self.boot_stl = self.settings.show()["theme"]
-        self.menubar = tk.Menu(root)
+        self.menubar = tk.Menu(self.root)
         self.filemenu = tk.Menu(self.menubar, tearoff=0)
         self.changemenu = tk.Menu(self.filemenu, tearoff=0)
         self.changemenu.add_command(label="Primary", command=lambda: self.change_style("primary"))
@@ -163,25 +162,19 @@ class AppDisplay:
         self.menubar.add_cascade(label=self.translations[self.language]["file"], menu=self.filemenu)
         self.root.config(menu=self.menubar)
 
-        self.right_click_menu = tk.Menu(root, tearoff=0)
+        self.right_click_menu = tk.Menu(self.root, tearoff=0)
         self.right_click_menu.add_command(label=self.translations[self.language]["copy"])
         self.right_click_menu.add_separator()
         self.right_click_menu.add_command(label=self.translations[self.language]["play_pause"])
         self.right_click_menu.add_separator()
         self.right_click_menu.add_command(label=self.translations[self.language]["del"])
 
-        self.player = mpv.MPV(ytdl=True, video=False)
-        self.player.command("set", "cache", "yes")
-        self.player.command("set", "cache-secs", "10")
-        self.player.command("set", "demuxer-readahead-secs", "5")
-        self.player.command("set", "demuxer-max-bytes", "5000000")
-        self.player.command("set", "demuxer-max-back-bytes", "5000000")
-        self.player.observe_property("playback-time", self.check_end)
+        self.player = mpv.MPV(ytdl=True, video=False, cache=True)
 
         self.gif_file = MUSIC_GIF
         self.info = Image.open(self.gif_file)
 
-        self.header = tk.Frame(root)
+        self.header = tk.Frame(self.root)
         self.header.grid(row=0, column=0, padx=5, pady=5)
 
         self.frames = self.info.n_frames
@@ -206,7 +199,7 @@ class AppDisplay:
         self.text_info2.grid(row=2, column=1, pady=2)
         ToolTip(self.text_info2, text=self.translations[self.language]["select"], bootstyle=self.boot_stl)
 
-        self.list_space = tk.Frame(root)
+        self.list_space = tk.Frame(self.root)
         self.list_space.grid(row=1, column=0, padx=5, pady=5)
 
         self.mylist = tk.Listbox(self.list_space, width=50, height=5)
@@ -231,7 +224,7 @@ class AppDisplay:
         self.del_button.grid(row=1, column=2, pady=2)
         ToolTip(self.del_button, text=self.translations[self.language]["del_track"], bootstyle=self.boot_stl)
 
-        self.progress_bar = tk.Frame(root)
+        self.progress_bar = tk.Frame(self.root)
         self.progress_bar.grid(row=2, column=0, padx=5, pady=5)
 
         self.seeking = False
@@ -244,7 +237,6 @@ class AppDisplay:
         self.progress_scale = ttk.Scale(self.progress_bar, variable=self.progress_val, bootstyle=self.boot_stl, orient=tk.HORIZONTAL, from_=0, to=100, length=240)
         self.progress_scale.bind("<ButtonRelease-1>", self.change_progress)
         self.progress_scale.bind('<Button-1>', self.set_value)
-
         self.progress_scale.grid(row=0, column=1, padx=5, pady=5)
 
         self.end_time = tk.Label(self.progress_bar, text="00:00")
@@ -252,7 +244,7 @@ class AppDisplay:
 
         self.update_progress()
 
-        self.buttons = tk.Frame(root)
+        self.buttons = tk.Frame(self.root)
         self.buttons.grid(row=3, column=0, padx=5, pady=5)
 
         self.prev_button = ttk.Button(self.buttons, text="⏮️", bootstyle=self.boot_stl, takefocus=False, command=self.play_previous)
@@ -271,7 +263,7 @@ class AppDisplay:
         self.next_button.grid(row=0, column=4, padx=5, pady=5)
         ToolTip(self.next_button, text=self.translations[self.language]["next"], bootstyle=self.boot_stl)
 
-        self.toggle_buttons = tk.Frame(root)
+        self.toggle_buttons = tk.Frame(self.root)
         self.toggle_buttons.grid(row=4, column=0, padx=5, pady=5)
 
         if self.settings.show()["shuffle"] == 'shuffle_off':
@@ -299,7 +291,7 @@ class AppDisplay:
         self.play_mode_button.grid(row=0, column=1, padx=3, pady=5)
         ToolTip(self.play_mode_button, text=self.translations[self.language][self.settings.show()["play_mode"]], bootstyle=self.boot_stl)
 
-        self.volume_frame = tk.Frame(root)
+        self.volume_frame = tk.Frame(self.root)
         self.volume_frame.grid(row=5, column=0, padx=5, pady=5)
 
         if self.settings.show()["mute"] == 'mute_off':
@@ -329,6 +321,7 @@ class AppDisplay:
         self.clear_error_text()
 
         self.on_top = False
+        self.text_loop = None
 
     def f_coord(self, *d):
         xEnrPos, yEnrPos = d[0].x, d[0].y
@@ -384,35 +377,37 @@ class AppDisplay:
         self.progress_scale.event_generate('<Button-3>', x=event.x, y=event.y)
         return 'break'
 
-    def update_progress(self):
-        if self.player.time_pos is None or self.player.duration is None:
-            self.root.after(500, self.update_progress)
-            return
-
-        if abs(self.player.time_pos - self.player.duration) < 1:
-            self.player.time_pos = self.player.duration
-
-        if self.player.duration >= 3600:
-            start = time.strftime("%H:%M:%S", time.gmtime(self.player.time_pos))
-            end = time.strftime("%H:%M:%S", time.gmtime(self.player.duration))
-        else:
-            start = time.strftime("%M:%S", time.gmtime(self.player.time_pos))
-            end = time.strftime("%M:%S", time.gmtime(self.player.duration))
-
-        self.start_time.config(text=start)
-        self.end_time.config(text=end)
-
-        if not self.seeking:
-            progress_percent = (self.player.time_pos / self.player.duration) * 100
-            self.progress_val.set(progress_percent)
-
-        self.root.after(500, self.update_progress)
-
     def change_progress(self, *args):
-        self.seeking = True
         if self.player.duration:
             new_time = (self.progress_val.get() / 100) * self.player.duration
-            self.player.seek(new_time, reference="absolute")
+            if new_time >= self.player.duration:
+                if not self.seeking:
+                    self.seeking = False
+            else:
+                self.player.seek(new_time, reference="absolute")
+        self.seeking = False
+
+
+    def update_progress(self):
+        if self.player.time_pos is not None and self.player.duration is not None:
+            if self.player.duration >= 3600:
+                string = "%H:%M:%S"
+            else:
+                string = "%M:%S"
+            start = time.strftime(string, time.gmtime(self.player.time_pos))
+            end = time.strftime(string, time.gmtime(self.player.duration))
+            change_pos = self.player.time_pos / self.player.duration * 100 + 0.8
+            val = self.player.duration / 100 * int(self.progress_scale.get())
+            self.scale_progress = time.strftime(string, time.gmtime(val))
+            self.end_time.config(text=end)
+            if not self.seeking:
+                self.progress_val.set(change_pos)
+                self.start_time.config(text=start)
+            else:
+                self.start_time.config(text=self.scale_progress)
+            if val >= self.player.duration - 0.5 and not self.seeking:
+                self.on_track_end()
+        self.root.after(10, self.update_progress)
 
     def animation(self, current_frame=0):
         self.image = self.photoimage_objects[current_frame]
@@ -420,7 +415,7 @@ class AppDisplay:
         current_frame = current_frame + 1
         if current_frame == self.frames:
             current_frame = 0
-        self.loop = root.after(20, lambda: self.animation(current_frame))
+        self.loop = self.root.after(20, lambda: self.animation(current_frame))
 
     def stop_animation(self):
         if self.loop:
@@ -432,18 +427,18 @@ class AppDisplay:
 
     def open_new_window(self):
         if not self.on_top:
-            self.new_window = tk.Toplevel(root)
+            self.new_window = tk.Toplevel(self.root)
             self.new_window.title(self.translations[self.language]["add_new"])
             window_width = 500
             window_height = 140
-            self.screen_width = root.winfo_screenwidth()
-            self.screen_height = root.winfo_screenheight()
+            self.screen_width = self.root.winfo_screenwidth()
+            self.screen_height = self.root.winfo_screenheight()
             x = (self.screen_width/2) - (window_width/2)
             y = (self.screen_height/2) - (window_height/2)
             self.new_window.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
             self.new_window.resizable(False,False)
 
-            self.new_right_click_menu = tk.Menu(root, tearoff=0)
+            self.new_right_click_menu = tk.Menu(self.root, tearoff=0)
             self.new_right_click_menu.add_command(label=self.translations[self.language]["cut"])
             self.new_right_click_menu.add_command(label=self.translations[self.language]["copy"])
             self.new_right_click_menu.add_command(label=self.translations[self.language]["paste"])
@@ -555,12 +550,12 @@ class AppDisplay:
             logger.info("Nie wybrano zadnego utworu")
             return None
         if not self.on_top:
-            self.delete_window = tk.Toplevel(root)
+            self.delete_window = tk.Toplevel(self.root)
             self.delete_window.title(self.translations[self.language]["track_del"])
             window_width = 240
             window_height = 100
-            self.screen_width = root.winfo_screenwidth()
-            self.screen_height = root.winfo_screenheight()
+            self.screen_width = self.root.winfo_screenwidth()
+            self.screen_height = self.root.winfo_screenheight()
             x = (self.screen_width/2) - (window_width/2)
             y = (self.screen_height/2) - (window_height/2)
             self.delete_window.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
@@ -589,15 +584,17 @@ class AppDisplay:
         self.result = False
 
     def update(self):
+        if self.text_loop:
+            self.root.after_cancel(self.text_loop)
         double_text = self.title + '        ' + self.title
         display_text = double_text[self.s_index:self.s_index + self.width]
         self.text_info2.config(text=display_text)
         self.s_index += 1
         if self.s_index >= len(self.title) + 8:
             self.s_index = 0
-            self.root.after(len(self.title)*80+5000, self.update)
+            self.text_loop = self.root.after(len(self.title)*80+5000, self.update)
         else:
-            self.root.after(80, self.update)
+            self.text_loop = self.root.after(80, self.update)
 
     def clear_error_text(self):
         self.error.set("")
@@ -705,7 +702,9 @@ class AppDisplay:
             return
         current_index = cs[0]
         if self.shuffle_mode:
-            next_index = random.randint(0, self.mylist.size() - 1)
+            next_index = current_index
+            while next_index == current_index:
+                next_index = random.randint(0, self.mylist.size() - 1)
         else:
             next_index = (current_index + 1) % self.mylist.size()
         self.mylist.selection_clear(0, tk.END)
@@ -761,13 +760,6 @@ class AppDisplay:
             self.val.set(0)
             self.scale_lbl.config(text="0")
             self.change_volume()
-
-    def check_end(self, _, time):
-        if self.player.duration is None or self.player.playback_time is None:
-            return
-
-        if self.player.playback_time >= self.player.duration - 0.5:
-            self.on_track_end()
 
     def stop_audio(self):
         if self.player.playback_time:
@@ -865,6 +857,7 @@ class AppDisplay:
             ToolTip(self.shuffle_button, text=self.translations[self.language]["shuffle_on"], bootstyle=self.boot_stl)
         else:
             ToolTip(self.shuffle_button, text=self.translations[self.language]["shuffle_off"], bootstyle=self.boot_stl)
+        ToolTip(self.play_mode_button, text=self.translations[self.language][f'{self.play_mode}_mode'], bootstyle=self.boot_stl)
 
 
 
