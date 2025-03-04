@@ -54,6 +54,13 @@ class FileHandling:
             json.dump(self.data, f)
         self.sort()
 
+    def change_name(self, new_name, name):
+        self.data[new_name] = self.data[name]
+        del self.data[name]
+        with open(self.file, 'w', encoding="utf-8") as f:
+            json.dump(self.data, f)
+        self.sort()
+
     def remove(self, pos):
         key_name = [k for i, k in enumerate(self.data) if i == pos]
         del self.data[key_name[0]]
@@ -167,6 +174,7 @@ class AppDisplay:
         self.right_click_menu.add_separator()
         self.right_click_menu.add_command(label=self.translations[self.language]["play_pause"])
         self.right_click_menu.add_separator()
+        self.right_click_menu.add_command(label=self.translations[self.language]["change_name"])
         self.right_click_menu.add_command(label=self.translations[self.language]["del"])
 
         self.player = mpv.MPV(ytdl=True, video=False, cache=True)
@@ -361,6 +369,7 @@ class AppDisplay:
             self.language = 'en'
             self.right_click_menu.entryconfigure(self.translations[self.language]["copy"], command=lambda: e_widget.event_generate("<<Copy>>"))
         self.right_click_menu.entryconfigure(self.translations[self.language]["play_pause"], command=self.toggle_play_pause)
+        self.right_click_menu.entryconfigure(self.translations[self.language]["change_name"], command=self.change_name_window_func)
         self.right_click_menu.entryconfigure(self.translations[self.language]["del"], command=self.delete_url)
         self.right_click_menu.tk.call("tk_popup", self.right_click_menu, event.x_root, event.y_root)
 
@@ -543,6 +552,78 @@ class AppDisplay:
         self.e1.delete(0, tk.END)
         self.e2.delete(0, tk.END)
 
+    def change_name_window_func(self):
+        cs = self.mylist.curselection()
+        if not cs:
+            self.error.set(self.translations[self.language]["no_track_sel"])
+            logger.info("Nie wybrano zadnego utworu")
+            return None
+        name = list(self.data.show().keys())[cs[0]]
+        if not self.on_top:
+            self.change_name_window = tk.Toplevel(self.root)
+            self.change_name_window.title(self.translations[self.language]["change_name"])
+            window_width = 380
+            window_height = 140
+            self.screen_width = self.root.winfo_screenwidth()
+            self.screen_height = self.root.winfo_screenheight()
+            x = (self.screen_width/2) - (window_width/2)
+            y = (self.screen_height/2) - (window_height/2)
+            self.change_name_window.geometry('%dx%d+%d+%d' % (window_width, window_height, x, y))
+            self.change_name_window.resizable(False,False)
+
+            self.new_right_click_menu = tk.Menu(self.root, tearoff=0)
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["cut"])
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["copy"])
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["paste"])
+            self.new_right_click_menu.add_separator()
+            self.new_right_click_menu.add_command(label=self.translations[self.language]["select_all"])
+
+            self.url_entry = ttk.Label(self.change_name_window, bootstyle=self.boot_stl, text=self.translations[self.language]["old_name"]).grid(row=0, column=0, sticky=tk.W, pady=2)
+            self.name_entry = ttk.Label(self.change_name_window, bootstyle=self.boot_stl, text=self.translations[self.language]["new_name"]).grid(row=1, column=0, sticky=tk.W, pady=2)
+            self.old_name_text = tk.StringVar()
+            self.old_name = ttk.Entry(self.change_name_window, textvariable=self.old_name_text, bootstyle=self.boot_stl, state="disabled", width=40)
+            self.old_name_text.set(name)
+            self.entry_text = tk.StringVar()
+            self.new_name = ttk.Entry(self.change_name_window, textvariable=self.entry_text, bootstyle=self.boot_stl, width=40)
+            self.old_name.grid(row=0, column=1, pady=2)
+            self.new_name.grid(row=1, column=1, pady=2)
+
+            self.entry_text.trace("w", lambda *args: self.character_limit())
+
+            self.old_name.bind("<Button-3><ButtonRelease-3>", self.do_popup2)
+            self.new_name.bind("<Button-3><ButtonRelease-3>", self.do_popup2)
+
+            self.buttons_frame = tk.Frame(self.change_name_window)
+            self.buttons_frame.grid(row=2, column=1, pady=5)
+
+            self.accept_button = ttk.Button(self.buttons_frame, text=self.translations[self.language]["accept"], bootstyle=self.boot_stl, takefocus=False, command=lambda: self.change_name(name))
+            self.accept_button.grid(row=0, column=0, pady=5, padx=5)
+
+            self.cancel_button = ttk.Button(self.buttons_frame, text=self.translations[self.language]["cancel"], bootstyle=self.boot_stl, takefocus=False, command=self.change_name_window.destroy)
+            self.cancel_button.grid(row=0, column=1, pady=5, padx=5)
+
+            self.error_sec_win = tk.StringVar()
+            self.error_sec_win.set("")
+
+            self.label_sec_win = tk.Label(self.change_name_window, textvariable=self.error_sec_win, width=40, height=2)
+            self.label_sec_win.grid(row=3, column=1, sticky=tk.S, pady=2)
+            self.clear_error_text_sec_win()
+            
+            self.change_name_window.bind('<Destroy>', self.set_flag)
+
+        self.on_top = True
+
+    def change_name(self, name):
+        new_name = self.entry_text.get()
+        self.data.change_name(new_name, name)
+        self.error_sec_win.set(self.translations[self.language]["change_name_succesful"])
+        logger.info(f"Pomyślnie zmieniono nazwę!")
+        self.mylist.delete(0, tk.END)
+        for i, (k, v) in enumerate(self.data.show().items()):
+            self.mylist.insert(i, k)
+        self.on_top = False
+        self.change_name_window.destroy()
+
     def delete_url(self):
         cs = self.mylist.curselection()
         if not cs:
@@ -577,11 +658,12 @@ class AppDisplay:
     def on_yes(self, cs):
         self.error.set(self.translations[self.language]["track_del_confirm"])
         logger.info(f"Usunieto '{list(self.data.show().keys())[cs[0]]}' z listy")
+        if self.title == list(self.data.show().keys())[cs[0]]:
+            self.stop_audio()
         self.data.remove(cs[0])
         self.mylist.delete(cs)
         self.on_top = False
         self.delete_window.destroy()
-        self.result = False
 
     def update(self):
         if self.text_loop:
@@ -838,7 +920,8 @@ class AppDisplay:
 
         self.right_click_menu.entryconfigure(0, label=self.translations[self.language]["copy"])
         self.right_click_menu.entryconfigure(2, label=self.translations[self.language]["play_pause"])
-        self.right_click_menu.entryconfigure(4, label=self.translations[self.language]["del"])
+        self.right_click_menu.entryconfigure(4, label=self.translations[self.language]["change_name"])
+        self.right_click_menu.entryconfigure(5, label=self.translations[self.language]["del"])
 
         if self.player.pause == True:
             ToolTip(self.play_button, text=self.translations[self.language]["play"], bootstyle=self.boot_stl)
